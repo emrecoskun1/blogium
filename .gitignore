@@ -1,0 +1,51 @@
+# Docker
+*.log
+docker-compose.override.yml
+
+# Backups
+*.bak
+*.backup
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sensitive data
+appsettings.Development.json
+appsettings.Production.json
+secrets/
+
+# Node modules
+**/node_modules/
+
+# Build outputs
+**/dist/
+**/bin/
+**/obj/
+**/.angular/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Test coverage
+**/coverage/
+
+# Database
+*.db
+*.db-shm
+*.db-wal

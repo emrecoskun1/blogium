@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # SQL Server Database
+  blogium-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: blogium-sqlserver
+    hostname: blogium-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=BlogiumDb@2024!
+      - MSSQL_PID=Express
+      - MSSQL_TCP_PORT=1435
+    ports:
+      - "1435:1435"
+    volumes:
+      - blogium_sqldata:/var/opt/mssql
+    networks:
+      - blogium-net
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost,1435 -U sa -P 'BlogiumDb@2024!' -Q "SELECT 1" -C || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # Backend API
+  blogium-api:
+    build:
+      context: ./blogium-backend/Blogium.API
+      dockerfile: Dockerfile
+    image: blogium-api:latest
+    container_name: blogium-api
+    hostname: blogium-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Server=blogium-sqlserver,1435;Database=BlogiumDB;User Id=SA;Password=BlogiumDb@2024!;TrustServerCertificate=True;Encrypt=False;
+      - JwtSettings__Secret=BlogiumSecretKeyForJWTTokenGeneration2024!@#$
+      - JwtSettings__Issuer=Blogium.API
+      - JwtSettings__Audience=Blogium.Client
+      - JwtSettings__ExpirationInMinutes=1440
+    ports:
+      - "5001:80"
+    depends_on:
+      blogium-db:
+        condition: service_healthy
+    networks:
+      - blogium-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Application
+  blogium-frontend:
+    build:
+      context: ./blogium-frontend
+      dockerfile: Dockerfile
+    image: blogium-frontend:latest
+    container_name: blogium-frontend
+    hostname: blogium-frontend
+    ports:
+      - "4201:80"
+    depends_on:
+      blogium-api:
+        condition: service_started
+    networks:
+      - blogium-net
+    environment:
+      - API_URL=http://localhost:5001
+    restart: unless-stopped
+
+networks:
+  blogium-net:
+    driver: bridge
+    name: blogium-network
+
+volumes:
+  blogium_sqldata:
+    name: blogium_sqldata

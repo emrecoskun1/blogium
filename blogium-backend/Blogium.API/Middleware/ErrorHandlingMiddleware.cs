@@ -1,0 +1,69 @@
+using System.Net;
+using System.Text.Json;
+
+namespace Blogium.API.Middleware;
+
+public class ErrorHandlingMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly ILogger<ErrorHandlingMiddleware> _logger;
+
+    public ErrorHandlingMiddleware(RequestDelegate next, ILogger<ErrorHandlingMiddleware> logger)
+    {
+        _next = next;
+        _logger = logger;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        try
+        {
+            await _next(context);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An unhandled exception occurred");
+            await HandleExceptionAsync(context, ex);
+        }
+    }
+
+    private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
+    {
+        context.Response.ContentType = "application/json";
+        
+        var response = new
+        {
+            success = false,
+            message = GetErrorMessage(exception),
+            errors = new List<string> { exception.Message }
+        };
+
+        context.Response.StatusCode = exception switch
+        {
+            UnauthorizedAccessException => (int)HttpStatusCode.Forbidden,
+            KeyNotFoundException => (int)HttpStatusCode.NotFound,
+            ArgumentException => (int)HttpStatusCode.BadRequest,
+            InvalidOperationException => (int)HttpStatusCode.BadRequest,
+            _ => (int)HttpStatusCode.InternalServerError
+        };
+
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response, options));
+    }
+
+    private static string GetErrorMessage(Exception exception)
+    {
+        return exception switch
+        {
+            UnauthorizedAccessException => "You are not authorized to perform this action",
+            KeyNotFoundException => "The requested resource was not found",
+            ArgumentException => exception.Message,
+            InvalidOperationException => exception.Message,
+            _ => "An error occurred while processing your request"
+        };
+    }
+}

@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: blogium-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Password1Strong.
+      - MSSQL_PID=Express
+    ports:
+      - "1434:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    networks:
+      - blogium-network
+    healthcheck:
+      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P Password1Strong. -Q "SELECT 1"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./Blogium.API
+      dockerfile: Dockerfile
+    image: blogium-api:latest
+    container_name: blogium-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=blogium;User Id=SA;Password=Password1Strong.;TrustServerCertificate=True;
+    ports:
+      - "5001:80"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - blogium-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ../blogium
+      dockerfile: Dockerfile
+    image: blogium-frontend:latest
+    container_name: blogium-frontend
+    ports:
+      - "4201:80"
+    depends_on:
+      - api
+    networks:
+      - blogium-network
+    environment:
+      - API_URL=http://localhost:5001
+
+networks:
+  blogium-network:
+    driver: bridge
+
+volumes:
+  sqlserver_data:
